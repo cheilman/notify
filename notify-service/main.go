@@ -14,7 +14,7 @@ import (
 )
 
 var EVENTS = NewInMemoryNotifyStorage()
-var NOTIFIER = NewStdoutNotifier()
+var NOTIFIER = NewDesktopNotifier()
 
 func main() {
 	host := "localhost"
