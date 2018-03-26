@@ -6,23 +6,15 @@ import (
 	"net/http"
 
 	"context"
-	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"io"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"time"
 )
 
-type NotifyEvent struct {
-	Id      uuid.UUID `json:"id"`
-	Message string    `json:"message"`
-}
-
-type NotifyEvents []NotifyEvent
+var EVENTS = NewInMemoryNotifyStorage()
+var NOTIFIER = NewStdoutNotifier()
 
 func main() {
 	host := "localhost"
@@ -97,68 +89,4 @@ func RootIndex(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	fmt.Fprintln(w, "Hello World!")
-	fmt.Fprintf(w, "We have %d events.\n", len(EVENTS))
-}
-
-var EVENTS = make(NotifyEvents, 0)
-
-// Notify that a new event has just happened
-func NewEventNotification(w http.ResponseWriter, r *http.Request) {
-	var event NotifyEvent
-
-	body, err := ioutil.ReadAll(io.LimitReader(r.Body, 1048576))
-	if err != nil {
-		panic(err)
-	}
-	if err := r.Body.Close(); err != nil {
-		panic(err)
-	}
-	if err := json.Unmarshal(body, &event); err != nil {
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		if err := json.NewEncoder(w).Encode(err); err != nil {
-			panic(err)
-		}
-	}
-
-	// Add it to our list
-	event.Id = uuid.New()
-	EVENTS = append(EVENTS, event)
-
-	// Return it
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(event); err != nil {
-		panic(err)
-	}
-}
-
-func GetLatestEvent(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-
-	if len(EVENTS) > 0 {
-		w.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(w).Encode(EVENTS[len(EVENTS)-1]); err != nil {
-			panic(err)
-		}
-	} else {
-		// No events yet
-		w.WriteHeader(http.StatusNotFound)
-	}
-}
-
-func GetRecentEvents(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
-
-	n := len(EVENTS)
-	if n < 10 {
-		if err := json.NewEncoder(w).Encode(EVENTS); err != nil {
-			panic(err)
-		}
-	} else {
-		if err := json.NewEncoder(w).Encode(EVENTS[n-10:]); err != nil {
-			panic(err)
-		}
-	}
 }
