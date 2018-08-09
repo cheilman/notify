@@ -13,21 +13,28 @@ import (
 	"time"
 )
 
-var EVENTS = NewInMemoryNotifyStorage()
-var NOTIFIER = NewDesktopNotifier()
-
 func main() {
 	host := "localhost"
 	port := 20035
 
 	addr := fmt.Sprintf("%s:%d", host, port)
 
+	events := NewInMemoryNotifyStorage()
+	notifier := NewDesktopNotifier()
+	notifyChannel := make(chan NotifyEvent, 10)
+
 	router := mux.NewRouter().StrictSlash(true)
 
 	router.Methods("GET").Path("/").Name("RootIndex").HandlerFunc(RootIndex)
-	router.Methods("POST").Path("/event").Name("EventPOST").HandlerFunc(NewEventNotification)
-	router.Methods("GET").Path("/event").Name("EventGET").HandlerFunc(GetLatestEvent)
-	router.Methods("GET").Path("/events").Name("EventsGET").HandlerFunc(GetRecentEvents)
+	router.Methods("POST").Path("/event").Name("EventPOST").HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		NewEventNotification(writer, request, events, notifyChannel)
+	})
+	router.Methods("GET").Path("/event").Name("EventGET").HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		GetLatestEvent(writer, request, events)
+	})
+	router.Methods("GET").Path("/events").Name("EventsGET").HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		GetRecentEvents(writer, request, events)
+	})
 
 	router.Use(loggingMiddleware)
 
@@ -40,6 +47,26 @@ func main() {
 		Handler:      router, // Pass our instance of gorilla/mux in.
 	}
 
+	go func() {
+		for event := range notifyChannel {
+			notifier.NotifyOfEvent(event)
+		}
+	}()
+	//
+	//notifyChannel <- NotifyEvent{
+	//	Title:   "chan not",
+	//	Message: "msg",
+	//	Icon:    "icon",
+	//	Level:   INFORMATION,
+	//}
+	//
+	//notifyChannel <- NotifyEvent{
+	//	Title:   "chan not 2",
+	//	Message: "msg 2",
+	//	Icon:    "icon 2",
+	//	Level:   INFORMATION,
+	//}
+
 	// Run our server in a goroutine so that it doesn't block.
 	go func() {
 		log.Printf("Listening on %s...\n", addr)
@@ -48,13 +75,16 @@ func main() {
 		}
 	}()
 
-	c := make(chan os.Signal, 1)
+	c := make(chan os.Signal, 5)
 	// We'll accept graceful shutdowns when quit via SIGINT (Ctrl+C)
 	// SIGKILL, SIGQUIT or SIGTERM (Ctrl+/) will not be caught.
 	signal.Notify(c, os.Interrupt)
 
 	// Block until we receive our signal.
 	<-c
+
+	// Shutdown notification thread
+	close(notifyChannel)
 
 	// Create a deadline to wait for.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)

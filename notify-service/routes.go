@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 )
 
 // Notify that a new event has just happened
-func NewEventNotification(w http.ResponseWriter, r *http.Request) {
+func NewEventNotification(w http.ResponseWriter, r *http.Request,
+	events NotifyStorage, notifyChannel chan<- NotifyEvent) {
+
 	var event NotifyEvent
 
 	body, err := ioutil.ReadAll(io.LimitReader(r.Body, 1048576))
@@ -27,10 +30,13 @@ func NewEventNotification(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add it to our list
-	event = EVENTS.Add(event)
+	event = events.Add(event)
 
 	// Notify
-	NOTIFIER.NotifyOfEvent(event)
+	log.Printf("About to dump event to channel.")
+	notifyChannel <- event
+	log.Printf("Dumped event.")
+	//NOTIFIER.NotifyOfEvent(event)
 
 	// Return it
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
@@ -40,10 +46,12 @@ func NewEventNotification(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func GetLatestEvent(w http.ResponseWriter, r *http.Request) {
+func GetLatestEvent(w http.ResponseWriter, r *http.Request,
+	events NotifyStorage) {
+
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	evt := EVENTS.GetLatest()
+	evt := events.GetLatest()
 
 	if evt != nil {
 		w.WriteHeader(http.StatusOK)
@@ -56,11 +64,13 @@ func GetLatestEvent(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func GetRecentEvents(w http.ResponseWriter, r *http.Request) {
+func GetRecentEvents(w http.ResponseWriter, r *http.Request,
+	events NotifyStorage) {
+
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
 
-	if err := json.NewEncoder(w).Encode(EVENTS.GetNRecent(10)); err != nil {
+	if err := json.NewEncoder(w).Encode(events.GetNRecent(10)); err != nil {
 		panic(err)
 	}
 }

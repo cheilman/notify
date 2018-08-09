@@ -41,7 +41,7 @@ func (e *NotifyEvent) isError() bool {
 
 type NotifyStorage interface {
 	Add(event NotifyEvent) NotifyEvent
-	GetLatest() NotifyEvent
+	GetLatest() *NotifyEvent
 	GetNRecent(n int) NotifyEvents
 }
 

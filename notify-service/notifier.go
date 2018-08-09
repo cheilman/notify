@@ -45,13 +45,15 @@ func (s *DesktopNotifier) NotifyOfEvent(event NotifyEvent) {
 	var err error = nil
 	if event.isError() {
 		log.Printf("Alerting.")
-		err = beeep.Alert(event.Title, event.Message, event.Icon)
+		err = beeep.Alert(event.Title, event.Message, "event.Icon")
 		log.Printf("Alerted: '%v'", err)
 	} else {
 		log.Printf("Notifying.")
-		err = beeep.Notify(event.Title, event.Message, event.Icon)
+		err = beeep.Notify(event.Title, event.Message, "event.Icon")
 		log.Printf("Notified: '%v'", err)
 	}
+
+	log.Printf("Things are done.")
 
 	if err != nil {
 		log.Printf("Everything is hosed! %v", err)
